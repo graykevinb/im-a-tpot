@@ -53,8 +53,38 @@
             height: 100vh;
             margin: 0;
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            background: transparent;
+            overflow: hidden;
             color: #333;
+        }
+        /* Canvas as full-screen background */
+        canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            background: none;
+            pointer-events: none; /* Don't block clicks on UI */
+        }
+        /* Cloud layer between background and card */
+        #cloud-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5; /* Above canvas, below card */
+            pointer-events: none;
+        }
+        .cloud {
+            position: absolute;
+            opacity: 0.9;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.12));
+            will-change: transform;
+            user-select: none;
         }
         .main-text {
             font-size: 48px;
@@ -62,6 +92,19 @@
         .sub-text {
             font-size: 24px;
             margin-top: 10px;
+        }
+        /* Foreground content container */
+        .content-card {
+            position: relative;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.85);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px 28px;
+            width: min(92vw, 560px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
         }
         .grass-button {
             margin-top: 20px;
@@ -73,6 +116,16 @@
             border-radius: 4px;
             cursor: pointer;
         }
+        /* Add pointing finger emojis to grass button */
+        .grass-button::before,
+        .grass-button::after {
+            content: "👉";
+            display: inline-block;
+            margin: 0 8px;
+        }
+        .grass-button::after {
+            content: "👈";
+        }
         .grass-button:hover {
             background-color: #45a049;
         }
@@ -80,13 +133,45 @@
             font-size: 18px;
             margin-top: 10px;
         }
+        /* X brag button styling */
+        .brag-button {
+            margin-top: 10px;
+            display: inline-block;
+            text-decoration: none;
+            background-color: #000; /* X brand color */
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .brag-button:hover {
+            background-color: #111;
+        }
     </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+            }
+        }
+    </script>
 </head>
 <body>
-    <div class="main-text">418 You're a Tpot</div>
-    <div class="sub-text">Go touch grass</div>
-    <button class="grass-button" onclick="findNearestGrass()">Find Nearest Patch of Grass</button>
-    <div class="counter-text" id="counter">Loading grass touches...</div>
+    <canvas id="bg"></canvas>
+    <div id="cloud-layer" aria-hidden="true"></div>
+    <div class="content-card">
+        <div class="main-text">418 You're a Tpot</div>
+        <div class="sub-text">Go touch grass</div>
+        <div class="counter-text" id="counter">Loading grass touches...</div>
+        <button class="grass-button" onclick="findNearestGrass()">Go touch grass</button>
+        <a
+            class="brag-button"
+            href="https://x.com/intent/tweet?text=I%20touched%20grass%20and%20bragged%20to%20Tpot"
+            target="_blank" rel="noopener noreferrer"
+        >Brag to Tpot that you touched grass</a>
+    </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
@@ -151,6 +236,255 @@
 
         // Initial counter load
         updateCounter();
+    </script>
+    <script>
+        // Simple cloud animation layer sitting above the Three.js canvas
+        (function() {
+            const layer = document.getElementById('cloud-layer');
+            if (!layer) return;
+
+            const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const NUM_CLOUDS = prefersReduced ? 3 : 7;
+            const SPEED_MIN = prefersReduced ? 5 : 15; // px/s
+            const SPEED_MAX = prefersReduced ? 15 : 45; // px/s
+
+            const vw = () => window.innerWidth;
+            const vh = () => window.innerHeight;
+
+            const clouds = [];
+
+            function rand(min, max) { return Math.random() * (max - min) + min; }
+
+            function makeCloud(initial = false) {
+                const img = document.createElement('img');
+                img.src = 'cloud.png';
+                img.alt = '';
+                img.className = 'cloud';
+
+                // Random width between 120px and 320px
+                const width = Math.round(rand(120, 320));
+                img.style.width = width + 'px';
+
+                // Random vertical position in the sky region (top 45% of screen)
+                const y = Math.round(rand(0.05 * vh(), 0.45 * vh()));
+
+                // Starting X position
+                const startX = initial ? Math.round(rand(-width, vw())) : -width - Math.round(rand(0, vw() * 0.2));
+
+                // Random speed
+                const speed = rand(SPEED_MIN, SPEED_MAX);
+
+                layer.appendChild(img);
+                const cloud = { el: img, x: startX, y, speed, width };
+                img.style.transform = `translate(${cloud.x}px, ${cloud.y}px)`;
+                clouds.push(cloud);
+            }
+
+            function respawn(cloud) {
+                cloud.width = cloud.el.getBoundingClientRect().width || cloud.width;
+                cloud.x = -cloud.width - Math.round(rand(0, vw() * 0.2));
+                cloud.y = Math.round(rand(0.05 * vh(), 0.45 * vh()));
+                cloud.speed = rand(SPEED_MIN, SPEED_MAX);
+                // Randomly resize on respawn
+                const newWidth = Math.round(rand(120, 320));
+                cloud.el.style.width = newWidth + 'px';
+                cloud.width = newWidth;
+            }
+
+            // Initialize clouds
+            for (let i = 0; i < NUM_CLOUDS; i++) makeCloud(true);
+
+            let last = performance.now();
+            function tick(now) {
+                const dt = Math.min(0.05, (now - last) / 1000); // cap delta to avoid jumps
+                last = now;
+                const width = vw();
+                for (const c of clouds) {
+                    c.x += c.speed * dt;
+                    if (c.x > width + c.width) {
+                        respawn(c);
+                    }
+                    c.el.style.transform = `translate(${Math.round(c.x)}px, ${c.y}px)`;
+                }
+                requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+
+            window.addEventListener('resize', () => {
+                // Keep clouds within updated sky bounds after resize on next respawn
+            });
+        })();
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('bg') });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x87CEEB); // Sky blue background
+        renderer.shadowMap.enabled = true; // Enable shadow mapping
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows for better quality
+
+        // Grass blade geometry: a tall thin plane with segments for bending
+        const bladeWidth = 0.1;
+        const bladeHeight = 1.0;
+        const widthSegments = 1;
+        const heightSegments = 4; // Segments allow smooth bending in shader
+        const bladeGeometry = new THREE.PlaneGeometry(bladeWidth, bladeHeight, widthSegments, heightSegments);
+
+        // Number of grass instances
+        const instanceCount = 500000;
+
+        // Custom shader material for grass with shadow support
+        const grassMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0.0 },
+                windStrength: { value: 0.5 },
+                windSpeed: { value: 2.0 },
+                shadowMap: { value: null },
+                shadowMatrix: { value: new THREE.Matrix4() }
+            },
+            vertexShader: `
+                uniform float time;
+                uniform float windStrength;
+                uniform float windSpeed;
+                varying vec2 vUv;
+                varying float vHeight;
+                varying vec4 vWorldPosition;
+
+                void main() {
+                    vUv = uv;
+                    vec4 localPosition = vec4(position, 1.0);
+
+                    vec3 instancePos = instanceMatrix[3].xyz;
+
+                    vHeight = (localPosition.y / ${bladeHeight.toFixed(1)}) + 0.5;
+
+                    float phase = sin(time * windSpeed + instancePos.x * 0.1 + instancePos.z * 0.1);
+                    float bendAmount = phase * windStrength * vHeight * vHeight;
+
+                    localPosition.x += bendAmount * 0.5;
+                    localPosition.z += bendAmount * 0.3 * cos(time * windSpeed * 0.5 + instancePos.z * 0.05);
+
+                    vWorldPosition = modelMatrix * instanceMatrix * localPosition;
+
+                    gl_Position = projectionMatrix * viewMatrix * vWorldPosition;
+                }
+            `,
+            fragmentShader: `
+                varying vec2 vUv;
+                varying float vHeight;
+                varying vec4 vWorldPosition;
+
+                void main() {
+                    vec3 baseColor = vec3(0.15, 0.5, 0.15);
+                    vec3 tipColor = vec3(0.4, 0.8, 0.3);
+                    vec3 color = mix(baseColor, tipColor, vHeight);
+
+                    float alpha = smoothstep(0.0, 0.1, abs(vUv.x - 0.5)) * 0.2 + 0.8;
+
+                    vec3 lightDir = normalize(vec3(0.0, 1.0, -1.0));
+                    vec3 normal = vec3(0.0, 1.0, 0.0);
+                    float diffuse = max(dot(normal, lightDir), 0.0);
+                    color *= diffuse * 0.8 + 0.2;
+
+                    gl_FragColor = vec4(color, alpha);
+                }
+            `,
+            side: THREE.DoubleSide,
+            transparent: true,
+            depthWrite: false,
+        });
+
+        // Create instanced grass mesh
+        const instancedGrass = new THREE.InstancedMesh(bladeGeometry, grassMaterial, instanceCount);
+        instancedGrass.castShadow = true;
+        instancedGrass.receiveShadow = true;
+        scene.add(instancedGrass);
+
+        // Position grass instances on a large grid to fill the view
+        const fieldSize = 100; // Large field to cover background
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < instanceCount; i++) {
+            const row = Math.floor(i / Math.sqrt(instanceCount));
+            const col = i % Math.sqrt(instanceCount);
+            dummy.position.set(
+                (col / Math.sqrt(instanceCount) - 0.5) * fieldSize + (Math.random() - 0.5) * 1.0,
+                0,
+                (row / Math.sqrt(instanceCount) - 0.5) * fieldSize + (Math.random() - 0.5) * 1.0
+            );
+            dummy.rotation.y = Math.random() * Math.PI * 2;
+            const scale = 0.8 + Math.random() * 0.4;
+            dummy.scale.set(1, scale, 1);
+            dummy.updateMatrix();
+            instancedGrass.setMatrixAt(i, dummy.matrix);
+        }
+        instancedGrass.instanceMatrix.needsUpdate = true;
+
+        // Add brown ground plane
+        const groundGeometry = new THREE.PlaneGeometry(fieldSize, fieldSize);
+        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Sun setup: glowing sphere with halo and shadow casting
+        const sunGeometry = new THREE.SphereGeometry(1, 32, 32);
+        const sunMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFF00, emissive: 0xFFFF00, emissiveIntensity: 1 });
+        const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+        sun.position.set(20, 20, -20);
+        scene.add(sun);
+
+        const haloGeometry = new THREE.PlaneGeometry(5, 5);
+        const haloMaterial = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0.0 }, sunColor: { value: new THREE.Vector3(1.0, 1.0, 0.0) } },
+            vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            fragmentShader: `uniform float time; uniform vec3 sunColor; varying vec2 vUv; void main() { vec2 uv = vUv * 2.0 - 1.0; float dist = length(uv); float alpha = smoothstep(0.8, 0.2, dist) * 0.5; gl_FragColor = vec4(sunColor, alpha); }`,
+            transparent: true,
+            side: THREE.DoubleSide,
+        });
+        const halo = new THREE.Mesh(haloGeometry, haloMaterial);
+        halo.position.copy(sun.position);
+        halo.lookAt(camera.position);
+        scene.add(halo);
+
+        // Lighting with shadow casting
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.8);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xFFFF99, 0.9);
+        directionalLight.position.copy(sun.position);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.camera.left = -50;
+        directionalLight.shadow.camera.right = 50;
+        directionalLight.shadow.camera.top = 50;
+        directionalLight.shadow.camera.bottom = -50;
+        scene.add(directionalLight);
+
+        // Camera position
+        camera.position.set(0, 5, 20);
+        camera.lookAt(0, 0, 0);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            grassMaterial.uniforms.time.value = time * 0.001;
+            haloMaterial.uniforms.time.value = time * 0.001;
+            renderer.render(scene, camera);
+        }
+        animate(0);
     </script>
 </body>
 </html>
