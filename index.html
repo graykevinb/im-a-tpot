@@ -209,7 +209,7 @@
                 class="brag-button"
                 href="https://x.com/intent/tweet?text=I%20touched%20grass%20and%20bragged%20to%20Tpot"
                 target="_blank" rel="noopener noreferrer"
-            >Brag to Tpot that you touched grass</a>
+            >Brag to TPOT that you touched grass</a>
             <a
                 class="brag-button"
                 href="https://x.com/i/communities/1977848352630010048"
@@ -241,10 +241,10 @@
         function updateCounter() {
             counterRef.get().then((doc) => {
                 if (doc.exists) {
-                    document.getElementById('counter').innerText = `Tpot has touched grass ${doc.data().count} times`;
+                    document.getElementById('counter').innerText = `TPOT has touched grass ${doc.data().count} times`;
                 } else {
                     counterRef.set({ count: 0 });
-                    document.getElementById('counter').innerText = 'Tpot has touched grass 0 times';
+                    document.getElementById('counter').innerText = 'TPOT has touched grass 0 times';
                 }
             }).catch((error) => {
                 console.error('Error getting counter:', error);
