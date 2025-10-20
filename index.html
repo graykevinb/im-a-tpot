@@ -48,7 +48,7 @@
         body {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
             height: 100vh;
             margin: 0;
@@ -56,6 +56,7 @@
             background: transparent;
             overflow: hidden;
             color: #333;
+            padding-top: 50vh; /* move card down by a quarter of viewport */
         }
         /* Canvas as full-screen background */
         canvas {
@@ -110,9 +111,43 @@
             backdrop-filter: blur(10px);
             border-radius: 16px;
             padding: 24px 28px;
+            text-align: center;
+            line-height: 1.2;
             width: min(92vw, 560px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             text-align: center;
+        }
+        /* Button rows - mobile first */
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            justify-items: stretch;
+            align-items: stretch;
+            margin-top: 12px;
+            width: 100%;
+        }
+        /* Tablet: 2 per row */
+        @media (min-width: 600px) {
+            .button-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        /* Desktop: 3 in a centered row */
+        @media (min-width: 1024px) {
+            .button-row {
+                grid-template-columns: repeat(3, max-content);
+                justify-content: center;
+                justify-items: center;
+                gap: 12px 16px;
+            }
+            .button-row > * { width: auto; }
+        }
+        /* Mobile-friendly content card and typography */
+        @media (max-width: 480px) {
+            .content-card { padding: 16px 16px; max-height: 72vh; overflow-y: auto; }
+            .main-text { font-size: 32px; }
+            .sub-text { font-size: 18px; }
+            .counter-text { font-size: 15px; }
+            .grass-button, .brag-button { font-size: 15px; padding: 10px 14px; }
         }
         .grass-button {
             margin-top: 20px;
@@ -140,6 +175,26 @@
         .counter-text {
             font-size: 18px;
             margin-top: 10px;
+        }
+        /* Button rows */
+        .button-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            justify-items: stretch;
+            align-items: stretch;
+            margin-top: 12px;
+        }
+        @media (min-width: 720px) {
+            .button-row {
+                grid-template-columns: repeat(2, max-content);
+                justify-content: center;
+                justify-items: center;
+                gap: 12px 16px;
+            }
+            .button-row > * {
+                width: auto;
+            }
         }
         /* X brag button styling */
         .brag-button {
@@ -173,17 +228,19 @@
         <div class="main-text">418 You're a Tpot</div>
         <div class="sub-text">Go touch grass</div>
         <div class="counter-text" id="counter">Loading grass touches...</div>
-        <button class="grass-button" onclick="findNearestGrass()">Go touch grass</button>
-        <a
-            class="brag-button"
-            href="https://x.com/intent/tweet?text=I%20touched%20grass%20and%20bragged%20to%20Tpot"
-            target="_blank" rel="noopener noreferrer"
-        >Brag to Tpot that you touched grass</a>
-        <a
-            class="brag-button"
-            href="https://x.com/i/communities/1977848352630010048"
-            target="_blank" rel="noopener noreferrer"
-        >Join the Movement</a>
+        <div class="button-row">
+            <button class="grass-button" onclick="findNearestGrass()">Go touch grass</button>
+            <a
+                class="brag-button"
+                href="https://x.com/intent/tweet?text=I%20touched%20grass%20and%20bragged%20to%20Tpot"
+                target="_blank" rel="noopener noreferrer"
+            >Brag to Tpot that you touched grass</a>
+            <a
+                class="brag-button"
+                href="https://x.com/i/communities/1977848352630010048"
+                target="_blank" rel="noopener noreferrer"
+            >Join the Movement</a>
+        </div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
@@ -257,9 +314,25 @@
             if (!layer) return;
 
             const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            const NUM_CLOUDS = prefersReduced ? 3 : 7;
-            const SPEED_MIN = prefersReduced ? 5 : 15; // px/s
-            const SPEED_MAX = prefersReduced ? 15 : 45; // px/s
+            // Dynamic speed scale for mobile to avoid fast clouds; stronger reduction
+            function getSpeedScale() {
+                const w = window.innerWidth || 0;
+                if (prefersReduced) return 0.25;   // extra slow if reduced motion
+                // scale roughly with viewport width
+                if (w < 400) return 0.25;
+                if (w < 480) return 0.3;
+                if (w < 640) return 0.4;
+                if (w < 768) return 0.5;
+                if (w < 960) return 0.75;
+                return 1.0; // desktop
+            }
+            let speedScale = getSpeedScale();
+            let NUM_CLOUDS = prefersReduced ? 3 : 7;
+            // Base speed ranges (unscaled)
+            const BASE_CLOUD_SPEED_MIN = prefersReduced ? 5 : 15;   // px/s
+            const BASE_CLOUD_SPEED_MAX = prefersReduced ? 15 : 45;  // px/s
+            let SPEED_MIN = BASE_CLOUD_SPEED_MIN * speedScale;
+            let SPEED_MAX = BASE_CLOUD_SPEED_MAX * speedScale;
             const MIN_GAP_BASE = 160; // minimum horizontal spacing in px
             const WIDTH_MIN = 140;
             const WIDTH_MAX = 320;
@@ -304,11 +377,12 @@
                     ? Math.round(((i / NUM_CLOUDS) * (vw() + width)) - width)
                     : -width - Math.round(rand(0, vw() * 0.2));
 
-                // Random speed
-                const speed = rand(SPEED_MIN, SPEED_MAX);
+                // Random base speed, scaled to current speedScale
+                const baseSpeed = rand(BASE_CLOUD_SPEED_MIN, BASE_CLOUD_SPEED_MAX);
+                const speed = baseSpeed * speedScale;
 
                 layer.appendChild(img);
-                const cloud = { el: img, x: startX, y, speed, width, lane };
+                const cloud = { el: img, x: startX, y, speed, baseSpeed, width, lane };
                 img.style.transform = `translate(${cloud.x}px, ${cloud.y}px)`;
                 clouds.push(cloud);
             }
@@ -318,7 +392,8 @@
                 cloud.x = -cloud.width - Math.round(rand(0, vw() * 0.25));
                 cloud.lane = pickLane();
                 cloud.y = (laneYs[cloud.lane] || skyTop()) + Math.round(rand(-LANE_JITTER, LANE_JITTER));
-                cloud.speed = rand(SPEED_MIN, SPEED_MAX);
+                cloud.baseSpeed = rand(BASE_CLOUD_SPEED_MIN, BASE_CLOUD_SPEED_MAX);
+                cloud.speed = cloud.baseSpeed * speedScale;
                 // Randomly resize on respawn
                 const newWidth = Math.round(rand(WIDTH_MIN, WIDTH_MAX));
                 cloud.el.style.width = newWidth + 'px';
@@ -349,9 +424,12 @@
                 plane.y = Math.max(0, plane.y - Math.round(0.06 * vh()));
 
                 // Speed (faster than clouds)
-                const pMin = prefersReduced ? 25 : 70;
-                const pMax = prefersReduced ? 60 : 130;
-                plane.speed = rand(pMin, pMax);
+                // Base plane speed (unscaled), then apply scale
+                const BASE_PLANE_MIN = prefersReduced ? 25 : 70;
+                const BASE_PLANE_MAX = prefersReduced ? 60 : 130;
+                const base = rand(BASE_PLANE_MIN, BASE_PLANE_MAX);
+                plane.baseSpeed = base;
+                plane.speed = base * speedScale;
 
                 // Start X
                 plane.x = initial
@@ -391,8 +469,13 @@
                     const prev = sorted[i - 1];
                     const cur = sorted[i];
                     const minGap = Math.max(MIN_GAP_BASE, 0.6 * (prev.width + cur.width));
-                    if (cur.x < prev.x + minGap) {
-                        cur.x = prev.x + minGap;
+                    const target = prev.x + minGap;
+                    if (cur.x < target) {
+                        const overlap = target - cur.x;
+                        // Gentle push to avoid jumpy speed-ups; cap by per-frame distance
+                        const maxNudge = (cur.speed || SPEED_MIN) * dt * 0.75; // at most 75% of its own frame step
+                        const nudge = Math.min(overlap * 0.15, maxNudge);
+                        cur.x += nudge;
                     }
                 }
 
@@ -410,6 +493,17 @@
 
             window.addEventListener('resize', () => {
                 computeLanes();
+                // Update speed scale and ranges on resize for responsive speeds
+                speedScale = getSpeedScale();
+                SPEED_MIN = BASE_CLOUD_SPEED_MIN * speedScale;
+                SPEED_MAX = BASE_CLOUD_SPEED_MAX * speedScale;
+                // Recompute speeds from base to avoid compounding
+                for (const c of clouds) {
+                    c.speed = c.baseSpeed * speedScale;
+                }
+                if (plane && plane.baseSpeed != null) {
+                    plane.speed = plane.baseSpeed * speedScale;
+                }
                 // Leave current y positions; new lanes apply on next respawn
             });
         })();
