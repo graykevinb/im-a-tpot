@@ -117,29 +117,27 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             text-align: center;
         }
-        /* Button rows - mobile first */
-        .button-row {
+        /* Primary button spans full card */
+        .grass-button {
+            margin-top: 20px;
+            padding: 12px 18px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            display: block;
+        }
+        /* Row below: two buttons side-by-side, symmetrical */
+        .button-row-secondary {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            justify-items: stretch;
-            align-items: stretch;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
             margin-top: 12px;
             width: 100%;
-        }
-        /* Tablet: 2 per row */
-        @media (min-width: 600px) {
-            .button-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        /* Desktop: 3 in a centered row */
-        @media (min-width: 1024px) {
-            .button-row {
-                grid-template-columns: repeat(3, max-content);
-                justify-content: center;
-                justify-items: center;
-                gap: 12px 16px;
-            }
-            .button-row > * { width: auto; }
+            align-items: stretch; /* make both cells equal height */
         }
         /* Mobile-friendly content card and typography */
         @media (max-width: 480px) {
@@ -149,15 +147,9 @@
             .counter-text { font-size: 15px; }
             .grass-button, .brag-button { font-size: 15px; padding: 10px 14px; }
         }
-        .grass-button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+        /* Fine-tune on small screens */
+        @media (max-width: 480px) {
+            .button-row-secondary { gap: 10px; }
         }
         /* Add pointing finger emojis to grass button */
         .grass-button::before,
@@ -176,38 +168,21 @@
             font-size: 18px;
             margin-top: 10px;
         }
-        /* Button rows */
-        .button-row {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-            justify-items: stretch;
-            align-items: stretch;
-            margin-top: 12px;
-        }
-        @media (min-width: 720px) {
-            .button-row {
-                grid-template-columns: repeat(2, max-content);
-                justify-content: center;
-                justify-items: center;
-                gap: 12px 16px;
-            }
-            .button-row > * {
-                width: auto;
-            }
-        }
         /* X brag button styling */
         .brag-button {
-            margin-top: 10px;
-            display: inline-block;
+            box-sizing: border-box;
+            display: flex;            /* center content for symmetry */
+            align-items: center;
+            justify-content: center;
             text-decoration: none;
             background-color: #000; /* X brand color */
             color: #fff;
             border: none;
-            border-radius: 4px;
-            padding: 10px 20px;
+            border-radius: 6px;
+            padding: 12px 16px;
             font-size: 16px;
             cursor: pointer;
+            width: 100%;            /* fill grid cell */
         }
         .brag-button:hover {
             background-color: #111;
@@ -228,8 +203,8 @@
         <div class="main-text">418 You're a Tpot</div>
         <div class="sub-text">Go touch grass</div>
         <div class="counter-text" id="counter">Loading grass touches...</div>
-        <div class="button-row">
-            <button class="grass-button" onclick="findNearestGrass()">Go touch grass</button>
+        <button class="grass-button" onclick="findNearestGrass()">Go touch grass</button>
+        <div class="button-row-secondary">
             <a
                 class="brag-button"
                 href="https://x.com/intent/tweet?text=I%20touched%20grass%20and%20bragged%20to%20Tpot"
