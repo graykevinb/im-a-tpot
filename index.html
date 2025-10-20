@@ -1,0 +1,155 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>418 You're a Teapot</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .main-text {
+            font-size: 48px;
+        }
+        .sub-text {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+        .grass-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .grass-button:hover {
+            background-color: #45a049;
+        }
+        .counter-text {
+            font-size: 18px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-text">418 You're a Tpot</div>
+    <div class="sub-text">Go touch grass</div>
+    <button class="grass-button" onclick="findNearestGrass()">Find Nearest Patch of Grass</button>
+    <div class="counter-text" id="counter">Loading grass touches...</div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore.js"></script>
+    <script type="module">
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAMEJp1XSFccq00iikjqai0UoOev4NiHr4",
+            authDomain: "tpot-a5a24.firebaseapp.com",
+            projectId: "tpot-a5a24",
+            storageBucket: "tpot-a5a24.firebasestorage.app",
+            messagingSenderId: "809026922947",
+            appId: "1:809026922947:web:8a62b23bee5044c80af576",
+            measurementId: "G-GJBVTCXPFC"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Reference to counter document
+        const counterRef = db.collection('counters').doc('grassCounter');
+
+        // Update and display counter
+        function updateCounter() {
+            counterRef.get().then((doc) => {
+                if (doc.exists) {
+                    document.getElementById('counter').innerText = `${doc.data().count} people have touched grass`;
+                } else {
+                    counterRef.set({ count: 0 });
+                    document.getElementById('counter').innerText = '0 people have touched grass';
+                }
+            }).catch((error) => {
+                console.error('Error getting counter:', error);
+                document.getElementById('counter').innerText = 'Error loading counter';
+            });
+        }
+
+        // Increment counter on button click
+        function findNearestGrass() {
+            counterRef.update({
+                count: firebase.firestore.FieldValue.increment(1)
+            }).then(() => {
+                updateCounter();
+            }).catch((error) => {
+                console.error('Error updating counter:', error);
+            });
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        const url = `https://www.google.com/maps/search/parks/@${lat},${lng},15z`;
+                        window.open(url, '_blank');
+                    },
+                    function(error) {
+                        alert('Geolocation failed. Please enable location services.');
+                    }
+                );
+            } else {
+                alert('Geolocation not supported by this browser.');
+            }
+        }
+
+        // Initial counter load
+        updateCounter();
+    </script>
+</body>
+</html>
