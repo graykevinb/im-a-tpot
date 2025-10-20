@@ -43,6 +43,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>418 You're a Teapot</title>
+    <link rel="icon" href="data:,">
     <style>
         body {
             display: flex;
@@ -87,9 +88,9 @@
     <button class="grass-button" onclick="findNearestGrass()">Find Nearest Patch of Grass</button>
     <div class="counter-text" id="counter">Loading grass touches...</div>
 
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore.js"></script>
-    <script type="module">
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <script type="text/javascript">
         // Initialize Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyAMEJp1XSFccq00iikjqai0UoOev4NiHr4",
@@ -110,10 +111,10 @@
         function updateCounter() {
             counterRef.get().then((doc) => {
                 if (doc.exists) {
-                    document.getElementById('counter').innerText = `${doc.data().count} people have touched grass`;
+                    document.getElementById('counter').innerText = `Tpot has touched grass ${doc.data().count} times`;
                 } else {
                     counterRef.set({ count: 0 });
-                    document.getElementById('counter').innerText = '0 people have touched grass';
+                    document.getElementById('counter').innerText = 'Tpot has touched grass 0 times';
                 }
             }).catch((error) => {
                 console.error('Error getting counter:', error);
