@@ -86,6 +86,14 @@
             will-change: transform;
             user-select: none;
         }
+        .plane {
+            position: absolute;
+            opacity: 1;
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.18));
+            will-change: transform;
+            user-select: none;
+            pointer-events: none;
+        }
         .main-text {
             font-size: 48px;
         }
@@ -171,6 +179,11 @@
             href="https://x.com/intent/tweet?text=I%20touched%20grass%20and%20bragged%20to%20Tpot"
             target="_blank" rel="noopener noreferrer"
         >Brag to Tpot that you touched grass</a>
+        <a
+            class="brag-button"
+            href="https://x.com/i/communities/1977848352630010048"
+            target="_blank" rel="noopener noreferrer"
+        >Join the Movement</a>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
@@ -238,7 +251,7 @@
         updateCounter();
     </script>
     <script>
-        // Simple cloud animation layer sitting above the Three.js canvas
+    // Cloud animation layer above Three.js canvas; tuned to stay high and spread out
         (function() {
             const layer = document.getElementById('cloud-layer');
             if (!layer) return;
@@ -247,71 +260,157 @@
             const NUM_CLOUDS = prefersReduced ? 3 : 7;
             const SPEED_MIN = prefersReduced ? 5 : 15; // px/s
             const SPEED_MAX = prefersReduced ? 15 : 45; // px/s
+            const MIN_GAP_BASE = 160; // minimum horizontal spacing in px
+            const WIDTH_MIN = 140;
+            const WIDTH_MAX = 320;
+            const LANE_COUNT = 4; // vertical lanes to avoid vertical clumping
+            const LANE_JITTER = 12; // px vertical jitter within a lane
 
             const vw = () => window.innerWidth;
             const vh = () => window.innerHeight;
+            const skyTop = () => Math.round(0.00 * vh());
+            const skyBottom = () => Math.round(0.12 * vh()); // very high sky band
+
+            let laneYs = [];
+            function computeLanes() {
+                const top = skyTop();
+                const bottom = Math.max(top + 1, skyBottom());
+                const span = Math.max(1, bottom - top);
+                laneYs = new Array(LANE_COUNT).fill(0).map((_, i) => Math.round(top + (i + 0.5) * (span / LANE_COUNT)));
+            }
+            computeLanes();
 
             const clouds = [];
-
+            let plane = null; // single plane instance
             function rand(min, max) { return Math.random() * (max - min) + min; }
+            function pickLane() { return Math.floor(rand(0, LANE_COUNT)); }
 
-            function makeCloud(initial = false) {
+            function makeCloud(initial = false, i = 0) {
                 const img = document.createElement('img');
                 img.src = 'cloud.png';
                 img.alt = '';
                 img.className = 'cloud';
 
-                // Random width between 120px and 320px
-                const width = Math.round(rand(120, 320));
+                // Random width
+                const width = Math.round(rand(WIDTH_MIN, WIDTH_MAX));
                 img.style.width = width + 'px';
 
-                // Random vertical position in the sky region (top 45% of screen)
-                const y = Math.round(rand(0.05 * vh(), 0.45 * vh()));
+                // Lane-based vertical position in the sky region
+                const lane = pickLane();
+                const y = (laneYs[lane] || skyTop()) + Math.round(rand(-LANE_JITTER, LANE_JITTER));
 
-                // Starting X position
-                const startX = initial ? Math.round(rand(-width, vw())) : -width - Math.round(rand(0, vw() * 0.2));
+                // Starting X position, evenly phase some clouds to reduce initial crowding
+                const startX = initial
+                    ? Math.round(((i / NUM_CLOUDS) * (vw() + width)) - width)
+                    : -width - Math.round(rand(0, vw() * 0.2));
 
                 // Random speed
                 const speed = rand(SPEED_MIN, SPEED_MAX);
 
                 layer.appendChild(img);
-                const cloud = { el: img, x: startX, y, speed, width };
+                const cloud = { el: img, x: startX, y, speed, width, lane };
                 img.style.transform = `translate(${cloud.x}px, ${cloud.y}px)`;
                 clouds.push(cloud);
             }
 
             function respawn(cloud) {
                 cloud.width = cloud.el.getBoundingClientRect().width || cloud.width;
-                cloud.x = -cloud.width - Math.round(rand(0, vw() * 0.2));
-                cloud.y = Math.round(rand(0.05 * vh(), 0.45 * vh()));
+                cloud.x = -cloud.width - Math.round(rand(0, vw() * 0.25));
+                cloud.lane = pickLane();
+                cloud.y = (laneYs[cloud.lane] || skyTop()) + Math.round(rand(-LANE_JITTER, LANE_JITTER));
                 cloud.speed = rand(SPEED_MIN, SPEED_MAX);
                 // Randomly resize on respawn
-                const newWidth = Math.round(rand(120, 320));
+                const newWidth = Math.round(rand(WIDTH_MIN, WIDTH_MAX));
                 cloud.el.style.width = newWidth + 'px';
                 cloud.width = newWidth;
             }
 
-            // Initialize clouds
-            for (let i = 0; i < NUM_CLOUDS; i++) makeCloud(true);
+            // Initialize clouds with even x distribution to start spread out
+            for (let i = 0; i < NUM_CLOUDS; i++) makeCloud(true, i);
+
+            // Plane helpers
+            function spawnPlane(initial = false) {
+                if (!plane) {
+                    const img = document.createElement('img');
+                    img.src = 'plane.png';
+                    img.alt = 'plane';
+                    img.className = 'plane';
+                    layer.appendChild(img);
+                    plane = { el: img, x: 0, y: 0, speed: 0, width: 0, lane: 0 };
+                }
+
+                // Size and lane (between previous large and small ranges)
+                const width = Math.round(rand(300, 540));
+                plane.el.style.width = width + 'px';
+                plane.width = width;
+                plane.lane = pickLane();
+                // Move plane up quite a bit relative to clouds
+                plane.y = (laneYs[plane.lane] || skyTop()) + Math.round(rand(-LANE_JITTER, LANE_JITTER));
+                plane.y = Math.max(0, plane.y - Math.round(0.06 * vh()));
+
+                // Speed (faster than clouds)
+                const pMin = prefersReduced ? 25 : 70;
+                const pMax = prefersReduced ? 60 : 130;
+                plane.speed = rand(pMin, pMax);
+
+                // Start X
+                plane.x = initial
+                    ? Math.round(rand(-plane.width, vw() * 0.5))
+                    : -plane.width - Math.round(rand(20, vw() * 0.25));
+
+                plane.el.style.transform = `translate(${Math.round(plane.x)}px, ${plane.y}px)`;
+            }
+
+            spawnPlane(true);
 
             let last = performance.now();
             function tick(now) {
                 const dt = Math.min(0.05, (now - last) / 1000); // cap delta to avoid jumps
                 last = now;
                 const width = vw();
+
+                // Move and wrap
                 for (const c of clouds) {
                     c.x += c.speed * dt;
                     if (c.x > width + c.width) {
                         respawn(c);
                     }
+                }
+
+                // Move plane and wrap (only one plane on screen)
+                if (plane) {
+                    plane.x += plane.speed * dt;
+                    if (plane.x > width + plane.width) {
+                        spawnPlane(false);
+                    }
+                }
+
+                // Horizontal spacing pass to reduce clumping
+                const sorted = clouds.slice().sort((a, b) => a.x - b.x);
+                for (let i = 1; i < sorted.length; i++) {
+                    const prev = sorted[i - 1];
+                    const cur = sorted[i];
+                    const minGap = Math.max(MIN_GAP_BASE, 0.6 * (prev.width + cur.width));
+                    if (cur.x < prev.x + minGap) {
+                        cur.x = prev.x + minGap;
+                    }
+                }
+
+                // Apply transforms
+                for (const c of clouds) {
                     c.el.style.transform = `translate(${Math.round(c.x)}px, ${c.y}px)`;
                 }
+                if (plane) {
+                    plane.el.style.transform = `translate(${Math.round(plane.x)}px, ${plane.y}px)`;
+                }
+
                 requestAnimationFrame(tick);
             }
             requestAnimationFrame(tick);
 
             window.addEventListener('resize', () => {
-                // Keep clouds within updated sky bounds after resize on next respawn
+                computeLanes();
+                // Leave current y positions; new lanes apply on next respawn
             });
         })();
     </script>
@@ -335,7 +434,7 @@
         const bladeGeometry = new THREE.PlaneGeometry(bladeWidth, bladeHeight, widthSegments, heightSegments);
 
         // Number of grass instances
-        const instanceCount = 500000;
+        const instanceCount = 250000;
 
         // Custom shader material for grass with shadow support
         const grassMaterial = new THREE.ShaderMaterial({
